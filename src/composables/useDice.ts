@@ -135,6 +135,8 @@ export interface DieConfig {
   resinColors?: string[]
   /** Pip rendering style: 'dots' (default) or 'text' (draws the number). */
   pipStyle?: 'dots' | 'text'
+  /** Adds a Sobel-based normal map giving pips/text an engraved (recessed) look. */
+  pipEngraving?: boolean
   /** Multiplier for environment map contribution. Higher = more reflective. */
   envMapIntensity?: number
   /** Scale multiplier applied to pip radius (default 1.0). */
@@ -261,6 +263,7 @@ export const DICE_COLLECTION: DieConfig[] = [
     ],
     glitterSurface: true,
     pipStyle: 'text',
+    pipEngraving: true,
     envMapIntensity: 2.4,
   },
 ]

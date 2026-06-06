@@ -258,7 +258,70 @@ export function getDieRoughnessMaps(dieIdx: number): THREE.CanvasTexture[] {
 
 // ── Normal maps ───────────────────────────────────────────────────────────────
 
-function makeGlitterNormalMap(faceNum: number, dieIdx: number, pipScale: number): THREE.CanvasTexture {
+function makePipHeightData(faceNum: number, cfg: DieConfig, S: number): Float32Array {
+  const canvas = document.createElement('canvas')
+  canvas.width = S; canvas.height = S
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, S, S)
+  ctx.fillStyle = '#ffffff'
+  if (cfg.pipStyle === 'text') {
+    const fontSize = Math.round(S * 0.58)
+    ctx.font = `bold ${fontSize}px "${TEXT_FONT}", sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(faceNum), S / 2, S / 2)
+  } else {
+    const r = S * 0.086 * (cfg.pipScale ?? 1.0)
+    for (const [fx, fy] of PIP_POSITIONS[faceNum]) {
+      ctx.beginPath()
+      ctx.arc(fx * S, fy * S, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+  const img = ctx.getImageData(0, 0, S, S)
+  const data = new Float32Array(S * S)
+  for (let i = 0; i < S * S; i++) data[i] = img.data[i * 4] / 255
+  // 4-pass box blur to widen and smooth the bevel
+  for (let pass = 0; pass < 4; pass++) {
+    const tmp = data.slice()
+    for (let y = 1; y < S - 1; y++) {
+      for (let x = 1; x < S - 1; x++) {
+        data[y * S + x] = (
+          tmp[(y-1)*S+(x-1)] + tmp[(y-1)*S+x] + tmp[(y-1)*S+(x+1)] +
+          tmp[ y   *S+(x-1)] + tmp[ y   *S+x] + tmp[ y   *S+(x+1)] +
+          tmp[(y+1)*S+(x-1)] + tmp[(y+1)*S+x] + tmp[(y+1)*S+(x+1)]
+        ) / 9
+      }
+    }
+  }
+  return data
+}
+
+function applyEngravingNormals(imgData: Uint8ClampedArray, S: number, heightData: Float32Array, strength: number) {
+  const clamp = (v: number) => Math.max(0, Math.min(S - 1, v))
+  const H = (x: number, y: number) => heightData[clamp(y) * S + clamp(x)]
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      if (H(x, y) < 0.02) continue // outside pip region, keep existing normal
+      // Sobel kernel
+      const dX = (H(x+1,y-1) + 2*H(x+1,y) + H(x+1,y+1)) - (H(x-1,y-1) + 2*H(x-1,y) + H(x-1,y+1))
+      const dY = (H(x-1,y+1) + 2*H(x,y+1) + H(x+1,y+1)) - (H(x-1,y-1) + 2*H(x,y-1) + H(x+1,y-1))
+      // Standard height→normal (nx=-dX). Applied with negative normalScale → engraved look.
+      const nx = -dX * strength
+      const ny = -dY * strength
+      const nz = 1.0
+      const len = Math.sqrt(nx*nx + ny*ny + nz*nz)
+      const i = (y * S + x) * 4
+      imgData[i]   = Math.round((nx/len * 0.5 + 0.5) * 255)
+      imgData[i+1] = Math.round((ny/len * 0.5 + 0.5) * 255)
+      imgData[i+2] = Math.round((nz/len * 0.5 + 0.5) * 255)
+      imgData[i+3] = 255
+    }
+  }
+}
+
+function makeGlitterNormalMap(faceNum: number, dieIdx: number, pipScale: number, cfg: DieConfig): THREE.CanvasTexture {
   const S = 256
   const canvas = document.createElement('canvas')
   canvas.width = S; canvas.height = S
@@ -274,17 +337,24 @@ function makeGlitterNormalMap(faceNum: number, dieIdx: number, pipScale: number)
     ctx.fillStyle = `rgb(${r},${g},${b})`
     ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2)
   }
-  const pipR = S * 0.086 * pipScale
   const imgN = ctx.getImageData(0, 0, S, S), dN = imgN.data
-  const pipR2N = (pipR + 2) * (pipR + 2)
-  for (const [fx, fy] of PIP_POSITIONS[faceNum]) {
-    const cx = Math.round(fx * S), cy = Math.round(fy * S)
-    for (let py = 0; py < S; py++) {
-      for (let px = 0; px < S; px++) {
-        const dx = px - cx, dy = py - cy
-        if (dx*dx + dy*dy <= pipR2N) {
-          const i = (py * S + px) * 4
-          dN[i] = 128; dN[i+1] = 128; dN[i+2] = 255; dN[i+3] = 255
+  if (cfg.pipEngraving) {
+    // Engrave pip/text shapes into the normal map
+    const heightData = makePipHeightData(faceNum, cfg, S)
+    applyEngravingNormals(dN, S, heightData, 3.5)
+  } else {
+    // Reset pip areas to flat neutral (no engraving)
+    const pipR = S * 0.086 * pipScale
+    const pipR2N = (pipR + 2) * (pipR + 2)
+    for (const [fx, fy] of PIP_POSITIONS[faceNum]) {
+      const cx = Math.round(fx * S), cy = Math.round(fy * S)
+      for (let py = 0; py < S; py++) {
+        for (let px = 0; px < S; px++) {
+          const dx = px - cx, dy = py - cy
+          if (dx*dx + dy*dy <= pipR2N) {
+            const i = (py * S + px) * 4
+            dN[i] = 128; dN[i+1] = 128; dN[i+2] = 255; dN[i+3] = 255
+          }
         }
       }
     }
@@ -293,13 +363,30 @@ function makeGlitterNormalMap(faceNum: number, dieIdx: number, pipScale: number)
   return new THREE.CanvasTexture(canvas)
 }
 
+function makePipEngravingNormalMap(faceNum: number, cfg: DieConfig): THREE.CanvasTexture {
+  const S = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = S; canvas.height = S
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = 'rgb(128,128,255)'
+  ctx.fillRect(0, 0, S, S)
+  const imgN = ctx.getImageData(0, 0, S, S)
+  const heightData = makePipHeightData(faceNum, cfg, S)
+  applyEngravingNormals(imgN.data, S, heightData, 3.5)
+  ctx.putImageData(imgN, 0, 0)
+  return new THREE.CanvasTexture(canvas)
+}
+
 const normalMapCache = new Map<number, THREE.CanvasTexture[]>()
 
 export function getDieNormalMaps(dieIdx: number): THREE.CanvasTexture[] | null {
-  if (!DICE_COLLECTION[dieIdx].glitterSurface) return null
+  const cfg = DICE_COLLECTION[dieIdx]
+  if (!cfg.glitterSurface && !cfg.pipEngraving) return null
   if (normalMapCache.has(dieIdx)) return normalMapCache.get(dieIdx)!
-  const ps = DICE_COLLECTION[dieIdx].pipScale ?? 1.0
-  const maps = [1, 2, 3, 4, 5, 6].map(n => makeGlitterNormalMap(n, dieIdx, ps))
+  const ps = cfg.pipScale ?? 1.0
+  const maps = cfg.glitterSurface
+    ? [1, 2, 3, 4, 5, 6].map(n => makeGlitterNormalMap(n, dieIdx, ps, cfg))
+    : [1, 2, 3, 4, 5, 6].map(n => makePipEngravingNormalMap(n, cfg))
   normalMapCache.set(dieIdx, maps)
   return maps
 }

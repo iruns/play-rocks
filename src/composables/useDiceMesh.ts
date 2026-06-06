@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { FACE_FOR_MATERIAL, DICE_COLLECTION, DIE_SIZE } from './useDice'
+import type { DieConfig } from './useDice'
 import {
   getDieTextures,
   getDieRoughnessMaps,
@@ -8,6 +9,11 @@ import {
   getDieMetalnessMaps,
   getDieTransmissionMaps,
 } from './useDiceTextures'
+
+function normalScale(cfg: DieConfig): THREE.Vector2 {
+  const s = cfg.pipEngraving ? -0.8 : 0.85
+  return new THREE.Vector2(s, s)
+}
 
 export function buildMaterials(dieIdx: number): THREE.Material[] {
   const cfg = DICE_COLLECTION[dieIdx]
@@ -43,7 +49,7 @@ export function buildMaterials(dieIdx: number): THREE.Material[] {
       if (p.ior !== undefined)            params.ior            = p.ior
       if (p.iridescence !== undefined)   { params.iridescence  = p.iridescence; params.iridescenceIOR = p.iridescenceIOR ?? 1.5 }
       if (p.clearcoat !== undefined)     { params.clearcoat    = p.clearcoat;   params.clearcoatRoughness = p.clearcoatRoughness ?? 0.05 }
-      if (normalMap) { params.normalMap = normalMap; params.normalScale = new THREE.Vector2(0.85, 0.85) }
+      if (normalMap) { params.normalMap = normalMap; params.normalScale = normalScale(cfg) }
       return new THREE.MeshPhysicalMaterial(params)
     }
 
@@ -55,7 +61,7 @@ export function buildMaterials(dieIdx: number): THREE.Material[] {
     }
     if (metalnessMap) { sp.metalnessMap = metalnessMap; sp.metalness = 1.0 }
     if (s.color !== undefined) sp.color = new THREE.Color(s.color)
-    if (normalMap) { sp.normalMap = normalMap; sp.normalScale = new THREE.Vector2(0.85, 0.85) }
+    if (normalMap) { sp.normalMap = normalMap; sp.normalScale = normalScale(cfg) }
     return new THREE.MeshStandardMaterial(sp)
   })
 }

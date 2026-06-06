@@ -19,6 +19,11 @@ export type DiePath = Keyframe[]
 // Assigned face numbers:              3       4      1      6      2      5
 export const FACE_FOR_MATERIAL = [3, 4, 1, 6, 2, 5]
 
+export const PREVIEW_POS: [number, number, number][] = [
+  [-2.2, 0, -1.1], [-0.73, 0, -1.1], [0.73, 0, -1.1], [2.2, 0, -1.1],
+  [-2.2, 0, 1.1],  [-0.73, 0, 1.1],  [0.73, 0, 1.1],  [2.2, 0, 1.1],
+]
+
 // Euler (rx, ry, rz) to orient each face number upward (+Y world)
 export const FACE_ROTATIONS: Record<
   number,

@@ -7,7 +7,6 @@ import {
   getDieNormalMaps,
   getDieMetalnessMaps,
   getDieTransmissionMaps,
-  makeBodyGlitter,
 } from './useDiceTextures'
 
 export function buildMaterials(dieIdx: number): THREE.Material[] {
@@ -62,12 +61,10 @@ export function buildMaterials(dieIdx: number): THREE.Material[] {
 }
 
 export function makeDieMesh(dieIdx: number): THREE.Mesh {
-  const cfg = DICE_COLLECTION[dieIdx]
   const geo = new RoundedBoxGeometry(DIE_SIZE, DIE_SIZE, DIE_SIZE, 4, 0.07)
   const mats = buildMaterials(dieIdx)
   const mesh = new THREE.Mesh(geo, mats)
   mesh.castShadow = true
-  if (cfg.glitterBody) mesh.add(makeBodyGlitter())
   return mesh
 }
 
@@ -75,10 +72,4 @@ export function disposeMesh(mesh: THREE.Mesh) {
   mesh.geometry.dispose()
   const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
   mats.forEach((m: THREE.Material) => m.dispose())
-  for (const child of mesh.children) {
-    if (child instanceof THREE.Points) {
-      child.geometry.dispose()
-      ;(child.material as THREE.Material).dispose()
-    }
-  }
 }

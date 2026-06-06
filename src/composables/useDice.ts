@@ -131,8 +131,8 @@ export interface DieConfig {
   }
   /** Adds randomised metallic glitter flakes to the face texture. */
   glitterSurface?: boolean
-  /** Adds floating glitter Points inside the die mesh volume. */
-  glitterBody?: boolean
+  /** CSS color array for a partially-mixed resin swirl effect on the face. */
+  resinColors?: string[]
   /** Multiplier for environment map contribution. Higher = more reflective. */
   envMapIntensity?: number
   /** Scale multiplier applied to pip radius (default 1.0). */
@@ -238,18 +238,27 @@ export const DICE_COLLECTION: DieConfig[] = [
   {
     id: 'crystal',
     name: 'Crystal',
-    faceColor: 'rgba(255,255,255,0.06)',
-    pipColor: '#e8f4ff',
+    faceColor: '#d8eeff',
+    pipColor: '#ffffff',
     physical: {
-      opacity: 0.32,
-      roughness: 0.02,
-      metalness: 0.05,
+      transmission: 0.92,
+      thickness: 0.85,
+      roughness: 0.2,
+      metalness: 0.0,
+      ior: 1.45,
       clearcoat: 1.0,
-      clearcoatRoughness: 0.03,
-      color: 0xf0f8ff,
+      clearcoatRoughness: 0.04,
+      color: 0xeef6ff,
     },
-    glitterBody: true,
-    envMapIntensity: 2.2,
+    resinColors: [
+      '#9922ee',
+      '#00ddbb',
+      '#ff33aa',
+      '#2255ff',
+      '#ffffff',
+    ],
+    glitterSurface: true,
+    envMapIntensity: 2.4,
   },
 ]
 

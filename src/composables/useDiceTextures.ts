@@ -75,6 +75,30 @@ function makeGlitterLayer(ctx: CanvasRenderingContext2D, flakes: GlitterFlake[])
   ctx.globalAlpha = 1.0
 }
 
+function makeResinLayer(ctx: CanvasRenderingContext2D, colors: string[], rand: () => number, S: number) {
+  ctx.save()
+  ctx.filter = `blur(${Math.round(S * 0.16)}px)`
+  for (let i = 0; i < 10; i++) {
+    const color = colors[Math.floor(rand() * colors.length)]
+    const cx = rand() * S
+    const cy = rand() * S
+    const rx = rand() * S * 0.45 + S * 0.1
+    const ry = rand() * S * 0.35 + S * 0.08
+    const angle = rand() * Math.PI
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(angle)
+    ctx.beginPath()
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2)
+    ctx.fillStyle = color
+    ctx.globalAlpha = rand() * 0.45 + 0.25
+    ctx.fill()
+    ctx.restore()
+  }
+  ctx.restore()
+  ctx.globalAlpha = 1.0
+}
+
 function makeGlassPip(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
   ctx.beginPath()
   ctx.arc(cx, cy, r, 0, Math.PI * 2)
@@ -95,7 +119,7 @@ function makeStandardPip(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
 // ── Face diffuse textures ─────────────────────────────────────────────────────
 
-function makeFaceTex(n: number, cfg: DieConfig, glitterFlakes?: GlitterFlake[]): THREE.CanvasTexture {
+function makeFaceTex(n: number, cfg: DieConfig, dieIdx: number, glitterFlakes?: GlitterFlake[]): THREE.CanvasTexture {
   const S = 256
   const canvas = document.createElement('canvas')
   canvas.width = S; canvas.height = S
@@ -111,6 +135,11 @@ function makeFaceTex(n: number, cfg: DieConfig, glitterFlakes?: GlitterFlake[]):
     const g2 = ctx.createRadialGradient(S*0.28, S*0.22, 0, S*0.28, S*0.22, S*0.38)
     g2.addColorStop(0, 'rgba(255,255,255,0.22)'); g2.addColorStop(1, 'rgba(255,255,255,0.0)')
     ctx.fillStyle = g2; ctx.fillRect(0, 0, S, S)
+  }
+
+  if (cfg.resinColors) {
+    const rand = seededRand(dieIdx * 3000 + n * 17)
+    makeResinLayer(ctx, cfg.resinColors, rand, S)
   }
 
   if (cfg.glitterSurface && glitterFlakes) makeGlitterLayer(ctx, glitterFlakes)
@@ -134,37 +163,10 @@ export function getDieTextures(idx: number): THREE.CanvasTexture[] {
   const cfg = DICE_COLLECTION[idx]
   const textures = [1, 2, 3, 4, 5, 6].map(n => {
     const flakes = cfg.glitterSurface ? getGlitterFlakes(idx, n) : undefined
-    return makeFaceTex(n, cfg, flakes)
+    return makeFaceTex(n, cfg, idx, flakes)
   })
   textureCache.set(idx, textures)
   return textures
-}
-
-// ── Body glitter (Points) ─────────────────────────────────────────────────────
-
-export function makeBodyGlitter(): THREE.Points {
-  const count = 350
-  const pos = new Float32Array(count * 3)
-  const col = new Float32Array(count * 3)
-  const half = 0.85 * 0.42
-  for (let i = 0; i < count; i++) {
-    pos[i*3]   = (Math.random() - 0.5) * 2 * half
-    pos[i*3+1] = (Math.random() - 0.5) * 2 * half
-    pos[i*3+2] = (Math.random() - 0.5) * 2 * half
-    const t = Math.random()
-    if (t < 0.4)      { col[i*3]=1;    col[i*3+1]=0.84; col[i*3+2]=0.0 }
-    else if (t < 0.7) { col[i*3]=0.78; col[i*3+1]=0.84; col[i*3+2]=0.92 }
-    else              { col[i*3]=1;    col[i*3+1]=0.5;  col[i*3+2]=0.78 }
-  }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-  geo.setAttribute('color',    new THREE.BufferAttribute(col, 3))
-  const mat = new THREE.PointsMaterial({
-    size: 0.065, vertexColors: true,
-    transparent: true, opacity: 0.92,
-    sizeAttenuation: true, depthWrite: false,
-  })
-  return new THREE.Points(geo, mat)
 }
 
 // ── Roughness maps ────────────────────────────────────────────────────────────

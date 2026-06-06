@@ -95,6 +95,8 @@ export interface DieConfig {
   glitterBody?: boolean
   envMapIntensity?: number
   pipScale?: number
+  pipRoughness?: number
+  pipMetalness?: number
 }
 
 export const DICE_COLLECTION: DieConfig[] = [
@@ -177,6 +179,8 @@ export const DICE_COLLECTION: DieConfig[] = [
     name: 'Glitter',
     faceColor: '#12102a',
     pipColor: '#ffffff',
+    pipRoughness: 0.85,
+    pipMetalness: 0.04,
     standard: {
       roughness: 0.2,
       metalness: 0.92,

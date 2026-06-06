@@ -52,6 +52,7 @@ let trayObjects: THREE.Object3D[] = []
 const textureCache = new Map<number, THREE.CanvasTexture[]>()
 const roughnessCache = new Map<number, THREE.CanvasTexture[]>()
 const normalMapCache = new Map<number, THREE.CanvasTexture[]>()
+const metalnessCache = new Map<number, THREE.CanvasTexture[]>()
 
 // ── Seeded RNG (xorshift32) ────────────────────────────────────────────────────
 function seededRand(seed: number): () => number {
@@ -228,12 +229,14 @@ function buildMaterials(dieIdx: number): THREE.Material[] {
   const textures = getDieTextures(dieIdx)
   const roughnessMaps = getDieRoughnessMaps(dieIdx)
   const normalMaps = getDieNormalMaps(dieIdx)
+  const metalnessMaps = getDieMetalnessMaps(dieIdx)
   const envI = cfg.envMapIntensity ?? 1.2
 
   return FACE_FOR_MATERIAL.map(faceNum => {
     const map = textures[faceNum - 1]
     const roughnessMap = roughnessMaps[faceNum - 1]
     const normalMap = normalMaps?.[faceNum - 1]
+    const metalnessMap = metalnessMaps?.[faceNum - 1]
     if (cfg.physical) {
       const p = cfg.physical
       const params: THREE.MeshPhysicalMaterialParameters = {
@@ -241,6 +244,7 @@ function buildMaterials(dieIdx: number): THREE.Material[] {
         roughness: 1.0,
         metalness: p.metalness ?? 0.0,
       }
+      if (metalnessMap) { params.metalnessMap = metalnessMap; params.metalness = 1.0 }
       if (p.color !== undefined)         params.color          = new THREE.Color(p.color)
       if (p.transmission !== undefined)  { params.transmission = p.transmission; params.thickness = p.thickness ?? 0.85; params.transparent = true }
       if (p.iridescence !== undefined)   { params.iridescence  = p.iridescence; params.iridescenceIOR = p.iridescenceIOR ?? 1.5 }
@@ -255,6 +259,7 @@ function buildMaterials(dieIdx: number): THREE.Material[] {
       roughness: 1.0,
       metalness: s.metalness ?? 0.04,
     }
+    if (metalnessMap) { sp.metalnessMap = metalnessMap; sp.metalness = 1.0 }
     if (s.color !== undefined) sp.color = new THREE.Color(s.color)
     if (normalMap) { sp.normalMap = normalMap; sp.normalScale = new THREE.Vector2(0.85, 0.85) }
     return new THREE.MeshStandardMaterial(sp)
@@ -398,6 +403,46 @@ function getDieNormalMaps(dieIdx: number): THREE.CanvasTexture[] | null {
   const ps = DICE_COLLECTION[dieIdx].pipScale ?? 1.0
   const maps = [1, 2, 3, 4, 5, 6].map(n => makeGlitterNormalMap(n, dieIdx, ps))
   normalMapCache.set(dieIdx, maps)
+  return maps
+}
+
+function makeMetalnessMap(faceNum: number, bodyMetalness: number, pipMetalness: number, pipScale: number): THREE.CanvasTexture {
+  const S = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = S; canvas.height = S
+  const ctx = canvas.getContext('2d')!
+  const bodyV = Math.round(bodyMetalness * 255)
+  ctx.fillStyle = `rgb(${bodyV},${bodyV},${bodyV})`
+  ctx.fillRect(0, 0, S, S)
+  const pipR = S * 0.086 * pipScale
+  const img = ctx.getImageData(0, 0, S, S), d = img.data
+  const pipV = Math.round(pipMetalness * 255)
+  const pipR2 = pipR * pipR
+  for (const [fx, fy] of PIP_POSITIONS[faceNum]) {
+    const cx = Math.round(fx * S), cy = Math.round(fy * S)
+    for (let py = 0; py < S; py++) {
+      for (let px = 0; px < S; px++) {
+        const dx = px - cx, dy = py - cy
+        if (dx*dx + dy*dy <= pipR2) {
+          const i = (py * S + px) * 4
+          d[i] = d[i+1] = d[i+2] = pipV; d[i+3] = 255
+        }
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+  return new THREE.CanvasTexture(canvas)
+}
+
+function getDieMetalnessMaps(dieIdx: number): THREE.CanvasTexture[] | null {
+  const cfg = DICE_COLLECTION[dieIdx]
+  if (cfg.pipMetalness === undefined) return null
+  if (metalnessCache.has(dieIdx)) return metalnessCache.get(dieIdx)!
+  const bodyM = cfg.standard?.metalness ?? cfg.physical?.metalness ?? 0.04
+  const pipM = cfg.pipMetalness
+  const ps = cfg.pipScale ?? 1.0
+  const maps = [1, 2, 3, 4, 5, 6].map(n => makeMetalnessMap(n, bodyM, pipM, ps))
+  metalnessCache.set(dieIdx, maps)
   return maps
 }
 
@@ -719,6 +764,7 @@ onUnmounted(() => {
   textureCache.forEach(ts => ts.forEach(t => t.dispose()))
   roughnessCache.forEach(ms => ms.forEach(t => t.dispose()))
   normalMapCache.forEach(ms => ms.forEach(t => t.dispose()))
+  metalnessCache.forEach(ms => ms.forEach(t => t.dispose()))
   renderer.dispose()
 })
 </script>

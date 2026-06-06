@@ -89,12 +89,8 @@ function makeGlassPip(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: 
 }
 
 function makeStandardPip(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
-  ctx.beginPath(); ctx.arc(cx + 2, cy + 2, r, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fill()
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2)
   ctx.fillStyle = color; ctx.fill()
-  ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.3, r*0.35, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fill()
 }
 
 // ── Face diffuse textures ─────────────────────────────────────────────────────
@@ -104,7 +100,7 @@ function makeFaceTex(n: number, cfg: DieConfig, glitterFlakes?: GlitterFlake[]):
   const canvas = document.createElement('canvas')
   canvas.width = S; canvas.height = S
   const ctx = canvas.getContext('2d')!
-  const isGlass = cfg.faceColor.startsWith('rgba(') || (cfg.physical?.transmission ?? 0) > 0 || ((cfg.physical?.opacity ?? 1) < 1)
+  const isGlass = cfg.faceColor.startsWith('rgba(') || ((cfg.physical?.opacity ?? 1) < 1)
 
   if (!isGlass) {
     ctx.fillStyle = cfg.faceColor

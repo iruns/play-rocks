@@ -46,6 +46,7 @@ interface PreviewDie {
   rotSpeed: [number, number, number]
 }
 let previewDice: PreviewDie[] = []
+let previewFloor: THREE.Mesh | null = null
 let selectionRing: THREE.Mesh | null = null
 let rollDice: THREE.Mesh[] = []
 let trayObjects: THREE.Object3D[] = []
@@ -54,7 +55,52 @@ const raycaster = new THREE.Raycaster()
 const ndcPointer = new THREE.Vector2()
 let pointerDownPos = { x: 0, y: 0 }
 
-// ── Backdrop ──────────────────────────────────────────────────────────────────
+// ── Backdrop / floor ──────────────────────────────────────────────────────────
+
+function makeWoodTexture(): THREE.CanvasTexture {
+  const W = 512, H = 512
+  const canvas = document.createElement('canvas')
+  canvas.width = W; canvas.height = H
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#7a4f2e'
+  ctx.fillRect(0, 0, W, H)
+
+  // grain lines
+  for (let i = 0; i < 80; i++) {
+    const y = (i / 80) * H
+    ctx.beginPath(); ctx.moveTo(0, y)
+    for (let x = 0; x <= W; x += 6) {
+      ctx.lineTo(x, y + Math.sin(x * 0.015 + i * 0.5) * 4 + Math.sin(x * 0.04 + i) * 1.5)
+    }
+    const v = Math.round(40 + i * 1.2)
+    ctx.strokeStyle = `rgba(${v},${Math.round(v * 0.55)},${Math.round(v * 0.2)},0.45)`
+    ctx.lineWidth = 0.8 + (i % 3) * 0.6
+    ctx.stroke()
+  }
+
+  // knots
+  for (let k = 0; k < 3; k++) {
+    const kx = W * (0.2 + k * 0.3), ky = H * (0.18 + k * 0.32)
+    for (let r = 18; r > 1; r -= 2.5) {
+      ctx.beginPath()
+      ctx.ellipse(kx, ky, r * 1.5, r, 0.1, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(50,22,8,${0.28 - r * 0.008})`
+      ctx.lineWidth = 1.2; ctx.stroke()
+    }
+  }
+
+  // edge vignette
+  const gv = ctx.createRadialGradient(W/2, H/2, W*0.15, W/2, H/2, W*0.75)
+  gv.addColorStop(0, 'rgba(0,0,0,0)'); gv.addColorStop(1, 'rgba(0,0,0,0.28)')
+  ctx.fillStyle = gv; ctx.fillRect(0, 0, W, H)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(2, 2.5)
+  return tex
+}
 
 function makeGradientBg(): THREE.CanvasTexture {
   const c = document.createElement('canvas')
@@ -88,6 +134,14 @@ function setupPreview() {
     previewDice.push({ group, mesh, rotSpeed })
   })
 
+  const floorGeo = new THREE.PlaneGeometry(10, 8)
+  const floorMat = new THREE.MeshStandardMaterial({ map: makeWoodTexture(), roughness: 0.72, metalness: 0.0 })
+  previewFloor = new THREE.Mesh(floorGeo, floorMat)
+  previewFloor.rotation.x = -Math.PI / 2
+  previewFloor.position.y = -0.9
+  previewFloor.receiveShadow = true
+  scene.add(previewFloor)
+
   const ringGeo = new THREE.RingGeometry(0.52, 0.68, 48)
   const ringMat = new THREE.MeshBasicMaterial({ color: 0x4f7fff, side: THREE.DoubleSide, transparent: true, opacity: 0.75 })
   selectionRing = new THREE.Mesh(ringGeo, ringMat)
@@ -103,6 +157,12 @@ function clearPreview() {
     disposeMesh(pd.mesh)
   })
   previewDice = []
+  if (previewFloor) {
+    scene.remove(previewFloor)
+    previewFloor.geometry.dispose()
+    ;(previewFloor.material as THREE.Material).dispose()
+    previewFloor = null
+  }
   if (selectionRing) {
     scene.remove(selectionRing)
     selectionRing.geometry.dispose()

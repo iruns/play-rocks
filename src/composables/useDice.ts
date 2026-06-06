@@ -90,6 +90,7 @@ export interface DieConfig {
     roughness?: number
     metalness?: number
     thickness?: number
+    ior?: number
     iridescence?: number
     iridescenceIOR?: number
     color?: number
@@ -152,15 +153,17 @@ export const DICE_COLLECTION: DieConfig[] = [
   {
     id: 'ice',
     name: 'Arctic Ice',
-    faceColor: 'rgba(200,230,255,0.08)',
-    pipColor: '#ddf0ff',
+    faceColor: '#c8e4fc',
+    pipColor: '#ffffff',
     physical: {
-      opacity: 0.42,
-      roughness: 0.04,
-      metalness: 0.05,
+      transmission: 0.55,
+      thickness: 1.4,
+      roughness: 0.32,
+      metalness: 0.0,
+      ior: 1.31,
       clearcoat: 1.0,
       clearcoatRoughness: 0.08,
-      color: 0xe8f6ff,
+      color: 0x9ac8f4,
     },
     envMapIntensity: 2.0,
   },

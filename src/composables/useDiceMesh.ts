@@ -25,15 +25,20 @@ export function buildMaterials(dieIdx: number): THREE.Material[] {
 
     if (cfg.physical) {
       const p = cfg.physical
+      const hasTransmission = (p.transmission ?? 0) > 0
       const params: THREE.MeshPhysicalMaterialParameters = {
-        map, roughnessMap, envMapIntensity: envI,
-        roughness: 1.0,
+        map, envMapIntensity: envI,
         metalness: p.metalness ?? 0.0,
+        // transmission dies: skip roughnessMap (UV-baked contrast looks painted on),
+        // use scalar roughness directly so the value affects blur uniformly
+        roughnessMap: hasTransmission ? undefined : roughnessMap,
+        roughness:    hasTransmission ? (p.roughness ?? 0.1) : 1.0,
       }
       if (metalnessMap) { params.metalnessMap = metalnessMap; params.metalness = 1.0 }
       if (p.color !== undefined)         params.color          = new THREE.Color(p.color)
-      if (p.transmission !== undefined)  { params.transmission = p.transmission; params.thickness = p.thickness ?? 0.85; params.transparent = true }
+      if (hasTransmission)               { params.transmission = p.transmission!; params.thickness = p.thickness ?? 0.85; params.transparent = true; params.side = THREE.DoubleSide }
       if (p.opacity !== undefined && p.opacity < 1) { params.opacity = p.opacity; params.transparent = true; params.depthWrite = false }
+      if (p.ior !== undefined)            params.ior            = p.ior
       if (p.iridescence !== undefined)   { params.iridescence  = p.iridescence; params.iridescenceIOR = p.iridescenceIOR ?? 1.5 }
       if (p.clearcoat !== undefined)     { params.clearcoat    = p.clearcoat;   params.clearcoatRoughness = p.clearcoatRoughness ?? 0.05 }
       if (normalMap) { params.normalMap = normalMap; params.normalScale = new THREE.Vector2(0.85, 0.85) }

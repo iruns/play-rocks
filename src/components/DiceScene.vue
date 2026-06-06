@@ -20,7 +20,7 @@ import {
   planRoll,
 } from '../composables/useDice'
 import { makeDieMesh, disposeMesh } from '../composables/useDiceMesh'
-import { disposeTextureCaches } from '../composables/useDiceTextures'
+import { disposeTextureCaches, preloadFonts } from '../composables/useDiceTextures'
 
 const props = defineProps<{ mode: 'preview' | 'roll'; selectedDieIndex: number; dieCount: number }>()
 const emit = defineEmits<{
@@ -345,7 +345,7 @@ function onPointerUp(e: PointerEvent) {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-onMounted(() => {
+onMounted(async () => {
   const el = containerRef.value!
 
   renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -385,6 +385,7 @@ onMounted(() => {
   const rim = new THREE.PointLight(0xff8844, 0.4, 12)
   rim.position.set(3, 2, -4); scene.add(rim)
 
+  await preloadFonts()
   props.mode === 'preview' ? setupPreview() : setupRoll()
 
   window.addEventListener('resize', () => {

@@ -133,6 +133,8 @@ export interface DieConfig {
   glitterSurface?: boolean
   /** CSS color array for a partially-mixed resin swirl effect on the face. */
   resinColors?: string[]
+  /** Pip rendering style: 'dots' (default) or 'text' (draws the number). */
+  pipStyle?: 'dots' | 'text'
   /** Multiplier for environment map contribution. Higher = more reflective. */
   envMapIntensity?: number
   /** Scale multiplier applied to pip radius (default 1.0). */
@@ -258,6 +260,7 @@ export const DICE_COLLECTION: DieConfig[] = [
       '#ffffff',
     ],
     glitterSurface: true,
+    pipStyle: 'text',
     envMapIntensity: 2.4,
   },
 ]

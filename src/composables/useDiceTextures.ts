@@ -1,6 +1,14 @@
 import * as THREE from 'three'
 import { PIP_POSITIONS, DICE_COLLECTION, type DieConfig } from './useDice'
 
+// ── Font ─────────────────────────────────────────────────────────────────────
+
+const TEXT_FONT = 'Aladin'
+
+export async function preloadFonts(): Promise<void> {
+  await document.fonts.load(`bold 48px "${TEXT_FONT}"`)
+}
+
 // ── Seeded RNG (xorshift32) ───────────────────────────────────────────────────
 
 export function seededRand(seed: number): () => number {
@@ -144,11 +152,20 @@ function makeFaceTex(n: number, cfg: DieConfig, dieIdx: number, glitterFlakes?: 
 
   if (cfg.glitterSurface && glitterFlakes) makeGlitterLayer(ctx, glitterFlakes)
 
-  const pips = PIP_POSITIONS[n]
-  for (const [fx, fy] of pips) {
-    const cx = fx * S, cy = fy * S, r = S * 0.075 * (cfg.pipScale ?? 1.0)
-    if (isGlass) makeGlassPip(ctx, cx, cy, r, cfg.pipColor)
-    else makeStandardPip(ctx, cx, cy, r, cfg.pipColor)
+  if (cfg.pipStyle === 'text') {
+    const fontSize = Math.round(S * 0.58)
+    ctx.font = `bold ${fontSize}px "${TEXT_FONT}", sans-serif`
+    ctx.fillStyle = cfg.pipColor
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(n), S / 2, S / 2)
+  } else {
+    const pips = PIP_POSITIONS[n]
+    for (const [fx, fy] of pips) {
+      const cx = fx * S, cy = fy * S, r = S * 0.075 * (cfg.pipScale ?? 1.0)
+      if (isGlass) makeGlassPip(ctx, cx, cy, r, cfg.pipColor)
+      else makeStandardPip(ctx, cx, cy, r, cfg.pipColor)
+    }
   }
 
   const tex = new THREE.CanvasTexture(canvas)
@@ -333,19 +350,27 @@ export function getDieMetalnessMaps(dieIdx: number): THREE.CanvasTexture[] | nul
 
 // ── Transmission maps (opaque pips on transmissive body) ─────────────────────
 
-function makeTransmissionMap(n: number, pipScale: number): THREE.CanvasTexture {
+function makeTransmissionMap(n: number, cfg: DieConfig): THREE.CanvasTexture {
   const S = 128
   const canvas = document.createElement('canvas')
   canvas.width = S; canvas.height = S
   const ctx = canvas.getContext('2d')!
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, S, S)
-  const r = S * 0.086 * pipScale
-  for (const [fx, fy] of PIP_POSITIONS[n]) {
-    ctx.beginPath()
-    ctx.arc(fx * S, fy * S, r, 0, Math.PI * 2)
-    ctx.fillStyle = '#000000'
-    ctx.fill()
+  ctx.fillStyle = '#000000'
+  if (cfg.pipStyle === 'text') {
+    const fontSize = Math.round(S * 0.58)
+    ctx.font = `bold ${fontSize}px "${TEXT_FONT}", sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(n), S / 2, S / 2)
+  } else {
+    const r = S * 0.086 * (cfg.pipScale ?? 1.0)
+    for (const [fx, fy] of PIP_POSITIONS[n]) {
+      ctx.beginPath()
+      ctx.arc(fx * S, fy * S, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
   return new THREE.CanvasTexture(canvas)
 }
@@ -356,8 +381,7 @@ export function getDieTransmissionMaps(dieIdx: number): THREE.CanvasTexture[] | 
   const cfg = DICE_COLLECTION[dieIdx]
   if (!cfg.physical || (cfg.physical.transmission ?? 0) <= 0) return null
   if (transmissionMapCache.has(dieIdx)) return transmissionMapCache.get(dieIdx)!
-  const ps = cfg.pipScale ?? 1.0
-  const maps = [1, 2, 3, 4, 5, 6].map(n => makeTransmissionMap(n, ps))
+  const maps = [1, 2, 3, 4, 5, 6].map(n => makeTransmissionMap(n, cfg))
   transmissionMapCache.set(dieIdx, maps)
   return maps
 }

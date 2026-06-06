@@ -20,8 +20,14 @@ export type DiePath = Keyframe[]
 export const FACE_FOR_MATERIAL = [3, 4, 1, 6, 2, 5]
 
 export const PREVIEW_POS: [number, number, number][] = [
-  [-2.2, 0, -1.1], [-0.73, 0, -1.1], [0.73, 0, -1.1], [2.2, 0, -1.1],
-  [-2.2, 0, 1.1],  [-0.73, 0, 1.1],  [0.73, 0, 1.1],  [2.2, 0, 1.1],
+  [-2.2, 0, -1.1],
+  [-0.73, 0, -1.1],
+  [0.73, 0, -1.1],
+  [2.2, 0, -1.1],
+  [-2.2, 0, 1.1],
+  [-0.73, 0, 1.1],
+  [0.73, 0, 1.1],
+  [2.2, 0, 1.1],
 ]
 
 // Euler (rx, ry, rz) to orient each face number upward (+Y world)
@@ -75,33 +81,65 @@ export const PIP_POSITIONS: Record<
 }
 
 export interface DieConfig {
+  /** Unique identifier used for caching and lookup. */
   id: string
+  /** Display name shown in the UI. */
   name: string
+  /** CSS color for the face canvas background (hex or rgba). rgba triggers glass-pip mode. */
   faceColor: string
+  /** CSS color for pip fill. */
   pipColor: string
+  /** Standard (non-PBR) material params. Use when no special optical effects are needed. */
   standard?: {
+    /** Surface roughness: 0 = mirror, 1 = fully diffuse. */
     roughness?: number
+    /** Metalness: 0 = dielectric, 1 = metal. */
     metalness?: number
+    /** Base tint color as a hex number (e.g. 0xff0000). */
     color?: number
   }
+  /** MeshPhysicalMaterial params. Use for glass, crystal, iridescent, or clearcoat effects. */
   physical?: {
+    /**
+     * Glass-like light transmission (0–1). 1 = fully see-through.
+     * Pip areas are kept fully opaque via a transmissionMap.
+     */
     transmission?: number
+    /** Alpha-based opacity (0–1). Use for simple transparency without refraction. */
     opacity?: number
+    /**
+     * Surface roughness (0–1). Also controls transmission blur:
+     * 0 = perfectly clear glass, higher values = frosted/blurry see-through.
+     */
     roughness?: number
+    /** Metalness: 0 = dielectric, 1 = metal. */
     metalness?: number
+    /** Physical depth of the volume in world units. Affects transmission color absorption. */
     thickness?: number
+    /** Index of refraction (e.g. 1.0 = air, 1.5 = glass, 2.4 = diamond). Affects light bending. */
     ior?: number
+    /** Iridescence intensity (0–1): thin-film interference rainbow effect. */
     iridescence?: number
+    /** IOR of the iridescent thin film layer. */
     iridescenceIOR?: number
+    /** Base tint color as a hex number (e.g. 0xff0000). */
     color?: number
+    /** Clearcoat layer intensity (0–1): adds a glossy lacquer on top of the base material. */
     clearcoat?: number
+    /** Roughness of the clearcoat layer: 0 = mirror finish, 1 = satin. */
     clearcoatRoughness?: number
   }
+  /** Adds randomised metallic glitter flakes to the face texture. */
   glitterSurface?: boolean
+  /** Adds floating glitter Points inside the die mesh volume. */
   glitterBody?: boolean
+  /** Multiplier for environment map contribution. Higher = more reflective. */
   envMapIntensity?: number
+  /** Scale multiplier applied to pip radius (default 1.0). */
   pipScale?: number
+  /** Roughness override for pip areas in the roughness map. */
   pipRoughness?: number
+  /** Metalness override for pip areas in the metalness map. */
   pipMetalness?: number
 }
 
@@ -156,9 +194,9 @@ export const DICE_COLLECTION: DieConfig[] = [
     faceColor: '#c8e4fc',
     pipColor: '#ffffff',
     physical: {
-      transmission: 0.55,
+      transmission: 0.95,
       thickness: 1.4,
-      roughness: 0.32,
+      roughness: 0.5,
       metalness: 0.0,
       ior: 1.31,
       clearcoat: 1.0,

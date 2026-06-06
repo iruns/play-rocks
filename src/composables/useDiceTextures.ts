@@ -329,6 +329,37 @@ export function getDieMetalnessMaps(dieIdx: number): THREE.CanvasTexture[] | nul
   return maps
 }
 
+// ── Transmission maps (opaque pips on transmissive body) ─────────────────────
+
+function makeTransmissionMap(n: number, pipScale: number): THREE.CanvasTexture {
+  const S = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = S; canvas.height = S
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, S, S)
+  const r = S * 0.086 * pipScale
+  for (const [fx, fy] of PIP_POSITIONS[n]) {
+    ctx.beginPath()
+    ctx.arc(fx * S, fy * S, r, 0, Math.PI * 2)
+    ctx.fillStyle = '#000000'
+    ctx.fill()
+  }
+  return new THREE.CanvasTexture(canvas)
+}
+
+const transmissionMapCache = new Map<number, THREE.CanvasTexture[]>()
+
+export function getDieTransmissionMaps(dieIdx: number): THREE.CanvasTexture[] | null {
+  const cfg = DICE_COLLECTION[dieIdx]
+  if (!cfg.physical || (cfg.physical.transmission ?? 0) <= 0) return null
+  if (transmissionMapCache.has(dieIdx)) return transmissionMapCache.get(dieIdx)!
+  const ps = cfg.pipScale ?? 1.0
+  const maps = [1, 2, 3, 4, 5, 6].map(n => makeTransmissionMap(n, ps))
+  transmissionMapCache.set(dieIdx, maps)
+  return maps
+}
+
 // ── Cache disposal ────────────────────────────────────────────────────────────
 
 export function disposeTextureCaches() {
@@ -336,8 +367,10 @@ export function disposeTextureCaches() {
   roughnessCache.forEach(ms => ms.forEach(t => t.dispose()))
   normalMapCache.forEach(ms => ms.forEach(t => t.dispose()))
   metalnessCache.forEach(ms => ms.forEach(t => t.dispose()))
+  transmissionMapCache.forEach(ms => ms.forEach(t => t.dispose()))
   textureCache.clear()
   roughnessCache.clear()
   normalMapCache.clear()
   metalnessCache.clear()
+  transmissionMapCache.clear()
 }

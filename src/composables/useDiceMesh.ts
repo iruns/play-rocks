@@ -6,6 +6,7 @@ import {
   getDieRoughnessMaps,
   getDieNormalMaps,
   getDieMetalnessMaps,
+  getDieTransmissionMaps,
   makeBodyGlitter,
 } from './useDiceTextures'
 
@@ -15,6 +16,7 @@ export function buildMaterials(dieIdx: number): THREE.Material[] {
   const roughnessMaps = getDieRoughnessMaps(dieIdx)
   const normalMaps = getDieNormalMaps(dieIdx)
   const metalnessMaps = getDieMetalnessMaps(dieIdx)
+  const transmissionMaps = getDieTransmissionMaps(dieIdx)
   const envI = cfg.envMapIntensity ?? 1.2
 
   return FACE_FOR_MATERIAL.map(faceNum => {
@@ -22,6 +24,7 @@ export function buildMaterials(dieIdx: number): THREE.Material[] {
     const roughnessMap = roughnessMaps[faceNum - 1]
     const normalMap = normalMaps?.[faceNum - 1]
     const metalnessMap = metalnessMaps?.[faceNum - 1]
+    const transmissionMap = transmissionMaps?.[faceNum - 1]
 
     if (cfg.physical) {
       const p = cfg.physical
@@ -36,7 +39,7 @@ export function buildMaterials(dieIdx: number): THREE.Material[] {
       }
       if (metalnessMap) { params.metalnessMap = metalnessMap; params.metalness = 1.0 }
       if (p.color !== undefined)         params.color          = new THREE.Color(p.color)
-      if (hasTransmission)               { params.transmission = p.transmission!; params.thickness = p.thickness ?? 0.85; params.transparent = true; params.side = THREE.DoubleSide }
+      if (hasTransmission)               { params.transmission = p.transmission!; params.thickness = p.thickness ?? 0.85; params.transparent = true; params.side = THREE.DoubleSide; if (transmissionMap) params.transmissionMap = transmissionMap }
       if (p.opacity !== undefined && p.opacity < 1) { params.opacity = p.opacity; params.transparent = true; params.depthWrite = false }
       if (p.ior !== undefined)            params.ior            = p.ior
       if (p.iridescence !== undefined)   { params.iridescence  = p.iridescence; params.iridescenceIOR = p.iridescenceIOR ?? 1.5 }

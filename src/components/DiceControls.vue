@@ -13,6 +13,15 @@
           {{ die.name }}
         </button>
       </div>
+      <div class="type-strip">
+        <button
+          v-for="t in (['D6', 'D20'] as const)"
+          :key="t"
+          class="die-pill type-pill"
+          :class="{ selected: dieType === t }"
+          @click="emit('selectDieType', t)"
+        >{{ t }}</button>
+      </div>
       <button class="btn-roll btn-enter" @click="emit('enterRoll')">
         <span class="label">Roll with {{ DICE_COLLECTION[selectedDieIndex].name }}</span>
         <span class="hint">tap · swipe · shake</span>
@@ -31,7 +40,7 @@
         <button class="btn-back" @click="emit('backToPreview')" title="Choose die">←</button>
         <button class="btn-round" :disabled="dieCount <= 1" @click="emit('remove')">−</button>
         <button class="btn-roll" @click="emit('roll')">
-          <span class="label">{{ dieCount }}d6</span>
+          <span class="label">{{ dieCount }}{{ dieType.toLowerCase() }}</span>
           <span class="hint">{{ DICE_COLLECTION[selectedDieIndex].name }}</span>
         </button>
         <button class="btn-round" :disabled="dieCount >= 6" @click="emit('add')">+</button>
@@ -49,6 +58,7 @@ const props = defineProps<{
   dieCount: number
   results: number[]
   selectedDieIndex: number
+  dieType: 'D6' | 'D20'
 }>()
 
 const emit = defineEmits<{
@@ -56,6 +66,7 @@ const emit = defineEmits<{
   (e: 'add'): void
   (e: 'remove'): void
   (e: 'selectDie', i: number): void
+  (e: 'selectDieType', t: 'D6' | 'D20'): void
   (e: 'enterRoll'): void
   (e: 'backToPreview'): void
 }>()
@@ -109,6 +120,17 @@ const total = computed(() => props.results.reduce((a, b) => a + b, 0))
 }
 .die-pill:not(.selected):active {
   background: rgba(255,255,255,0.13);
+}
+
+.type-strip {
+  display: flex;
+  gap: 8px;
+  align-self: flex-start;
+}
+
+.type-pill {
+  min-width: 52px;
+  text-align: center;
 }
 
 .btn-enter {

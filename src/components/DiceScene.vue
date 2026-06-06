@@ -22,7 +22,7 @@ import {
 import { makeDieMesh, disposeMesh } from '../composables/useDiceMesh'
 import { disposeTextureCaches, preloadFonts } from '../composables/useDiceTextures'
 
-const props = defineProps<{ mode: 'preview' | 'roll'; selectedDieIndex: number; dieCount: number }>()
+const props = defineProps<{ mode: 'preview' | 'roll'; selectedDieIndex: number; dieCount: number; dieType: 'D6' | 'D20' }>()
 const emit = defineEmits<{
   (e: 'selectDie', index: number): void
   (e: 'results', results: number[]): void
@@ -37,6 +37,7 @@ let rafId: number
 let lastTime = 0
 let isRolling = false
 let currentRollDieIndex = -1
+let currentRollDieType = ''
 let controls: InstanceType<typeof OrbitControls> | null = null
 
 interface PreviewDie {
@@ -122,7 +123,7 @@ function setupPreview() {
     const [px, py, pz] = PREVIEW_POS[i]
     const group = new THREE.Group()
     group.position.set(px, py, pz)
-    const mesh = makeDieMesh(i)
+    const mesh = makeDieMesh(i, props.dieType === 'D20' ? 'd20' : 'd6')
     group.add(mesh)
     group.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI * 2, Math.random() * Math.PI)
     const rotSpeed: [number, number, number] = [
@@ -224,13 +225,14 @@ function clearTray() {
 }
 
 function syncRollCount(n: number) {
-  if (currentRollDieIndex !== props.selectedDieIndex) {
+  if (currentRollDieIndex !== props.selectedDieIndex || currentRollDieType !== props.dieType) {
     rollDice.forEach(m => { scene.remove(m); disposeMesh(m) })
     rollDice = []
     currentRollDieIndex = props.selectedDieIndex
+    currentRollDieType = props.dieType
   }
   while (rollDice.length < n) {
-    const mesh = makeDieMesh(props.selectedDieIndex)
+    const mesh = makeDieMesh(props.selectedDieIndex, props.dieType === 'D20' ? 'd20' : 'd6')
     scene.add(mesh); rollDice.push(mesh)
   }
   while (rollDice.length > n) {
@@ -425,6 +427,12 @@ watch(() => props.selectedDieIndex, () => {
 
 watch(() => props.dieCount, n => {
   if (props.mode === 'roll' && scene) syncRollCount(n)
+})
+
+watch(() => props.dieType, () => {
+  if (!scene) return
+  if (props.mode === 'preview') { clearPreview(); setupPreview() }
+  else { currentRollDieType = ''; syncRollCount(props.dieCount) }
 })
 
 onUnmounted(() => {

@@ -1,3 +1,5 @@
+export type DieType = 'd6' | 'd20'
+
 export const TRAY_W = 7
 export const TRAY_H = 10
 export const DIE_SIZE = 0.85

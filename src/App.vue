@@ -7,6 +7,7 @@ import { useShake } from './composables/useShake'
 const mode = ref<'preview' | 'roll'>('preview')
 const dieCount = ref(1)
 const selectedDieIndex = ref(0)
+const dieType = ref<'D6' | 'D20'>('D6')
 const results = ref<number[]>([])
 const sceneRef = ref<InstanceType<typeof DiceScene>>()
 const appRef = ref<HTMLDivElement>()
@@ -20,6 +21,7 @@ function enterRoll() { mode.value = 'roll' }
 function backToPreview() { mode.value = 'preview'; results.value = [] }
 function onResults(r: number[]) { results.value = r }
 function onSelectDie(i: number) { selectedDieIndex.value = i }
+function onSelectDieType(t: 'D6' | 'D20') { dieType.value = t }
 
 useShake(doRoll)
 
@@ -48,6 +50,7 @@ onMounted(() => {
       :mode="mode"
       :selected-die-index="selectedDieIndex"
       :die-count="dieCount"
+      :die-type="dieType"
       @select-die="onSelectDie"
       @results="onResults"
     />
@@ -56,10 +59,12 @@ onMounted(() => {
       :die-count="dieCount"
       :results="results"
       :selected-die-index="selectedDieIndex"
+      :die-type="dieType"
       @roll="doRoll"
       @add="dieCount = Math.min(6, dieCount + 1)"
       @remove="dieCount = Math.max(1, dieCount - 1)"
       @select-die="onSelectDie"
+      @select-die-type="onSelectDieType"
       @enter-roll="enterRoll"
       @back-to-preview="backToPreview"
     />

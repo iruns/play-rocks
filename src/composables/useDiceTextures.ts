@@ -473,6 +473,92 @@ export function getDieTransmissionMaps(dieIdx: number): THREE.CanvasTexture[] | 
   return maps
 }
 
+// ── D20 body textures (single material, full-body effects) ────────────────────
+
+const D20_S = 512
+
+function getD20Flakes(dieIdx: number): GlitterFlake[] {
+  const key = `d20_${dieIdx}`
+  if (flakeCache.has(key)) return flakeCache.get(key)!
+  const flakes = generateGlitterFlakes(D20_S, seededRand(dieIdx * 9000 + 1))
+  flakeCache.set(key, flakes)
+  return flakes
+}
+
+function makeD20BodyTex(dieIdx: number): THREE.CanvasTexture {
+  const cfg = DICE_COLLECTION[dieIdx]
+  const canvas = document.createElement('canvas')
+  canvas.width = D20_S; canvas.height = D20_S
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = cfg.faceColor
+  ctx.fillRect(0, 0, D20_S, D20_S)
+  if (cfg.resinColors) {
+    const rand = seededRand(dieIdx * 3000 + 999)
+    makeResinLayer(ctx, cfg.resinColors, rand, D20_S)
+  }
+  if (cfg.glitterSurface) makeGlitterLayer(ctx, getD20Flakes(dieIdx))
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+function makeD20GlitterNormalMap(dieIdx: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = D20_S; canvas.height = D20_S
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = 'rgb(128,128,255)'
+  ctx.fillRect(0, 0, D20_S, D20_S)
+  for (const f of getD20Flakes(dieIdx)) {
+    const nz = Math.sqrt(Math.max(0.01, 1 - f.tiltX * f.tiltX - f.tiltY * f.tiltY))
+    const r = Math.round((f.tiltX * 0.5 + 0.5) * 255)
+    const g = Math.round((f.tiltY * 0.5 + 0.5) * 255)
+    const b = Math.round((nz   * 0.5 + 0.5) * 255)
+    const fx = Math.round(f.x), fy = Math.round(f.y), fr = Math.round(f.r)
+    ctx.fillStyle = `rgb(${r},${g},${b})`
+    ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2)
+  }
+  return new THREE.CanvasTexture(canvas)
+}
+
+function makeD20GlitterRoughnessMap(dieIdx: number): THREE.CanvasTexture {
+  const cfg = DICE_COLLECTION[dieIdx]
+  const bodyR = cfg.physical?.roughness ?? cfg.standard?.roughness ?? 0.22
+  const bodyV = Math.round(bodyR * 255)
+  const canvas = document.createElement('canvas')
+  canvas.width = D20_S; canvas.height = D20_S
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = `rgb(${bodyV},${bodyV},${bodyV})`
+  ctx.fillRect(0, 0, D20_S, D20_S)
+  const sparkleV = Math.round(0.04 * 255)
+  for (const f of getD20Flakes(dieIdx)) {
+    const fx = Math.round(f.x), fy = Math.round(f.y), fr = Math.round(f.r)
+    ctx.fillStyle = `rgb(${sparkleV},${sparkleV},${sparkleV})`
+    ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2)
+  }
+  return new THREE.CanvasTexture(canvas)
+}
+
+export interface D20Textures {
+  map: THREE.CanvasTexture | null
+  normalMap: THREE.CanvasTexture | null
+  roughnessMap: THREE.CanvasTexture | null
+}
+
+const d20TexCache = new Map<number, D20Textures>()
+
+export function getD20Textures(dieIdx: number): D20Textures {
+  if (d20TexCache.has(dieIdx)) return d20TexCache.get(dieIdx)!
+  const cfg = DICE_COLLECTION[dieIdx]
+  const hasEffects = cfg.resinColors || cfg.glitterSurface
+  const result: D20Textures = {
+    map:          hasEffects ? makeD20BodyTex(dieIdx) : null,
+    normalMap:    cfg.glitterSurface ? makeD20GlitterNormalMap(dieIdx) : null,
+    roughnessMap: cfg.glitterSurface ? makeD20GlitterRoughnessMap(dieIdx) : null,
+  }
+  d20TexCache.set(dieIdx, result)
+  return result
+}
+
 // ── Cache disposal ────────────────────────────────────────────────────────────
 
 export function disposeTextureCaches() {
@@ -481,9 +567,11 @@ export function disposeTextureCaches() {
   normalMapCache.forEach(ms => ms.forEach(t => t.dispose()))
   metalnessCache.forEach(ms => ms.forEach(t => t.dispose()))
   transmissionMapCache.forEach(ms => ms.forEach(t => t.dispose()))
+  d20TexCache.forEach(d => { d.map?.dispose(); d.normalMap?.dispose(); d.roughnessMap?.dispose() })
   textureCache.clear()
   roughnessCache.clear()
   normalMapCache.clear()
   metalnessCache.clear()
   transmissionMapCache.clear()
+  d20TexCache.clear()
 }

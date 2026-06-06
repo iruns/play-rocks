@@ -51,6 +51,60 @@ let trayObjects: THREE.Object3D[] = []
 
 const textureCache = new Map<number, THREE.CanvasTexture[]>()
 const roughnessCache = new Map<number, THREE.CanvasTexture[]>()
+const normalMapCache = new Map<number, THREE.CanvasTexture[]>()
+
+// ── Seeded RNG (xorshift32) ────────────────────────────────────────────────────
+function seededRand(seed: number): () => number {
+  let s = (seed ^ 0xdeadbeef) >>> 0
+  return () => {
+    s ^= s << 13; s ^= s >> 17; s ^= s << 5
+    return (s >>> 0) / 0xffffffff
+  }
+}
+
+interface GlitterFlake {
+  x: number; y: number; r: number
+  tiltX: number; tiltY: number
+  isStar: boolean; color: string; alpha: number
+}
+
+const GLITTER_COLORS = ['#ffd700', '#ffe066', '#dde0ff', '#aac4ff', '#ff80c8', '#80ffee', '#ffffff', '#c880ff']
+const STAR_COLORS    = ['#ffffa0', '#ffffff', '#ffccee', '#c0f0ff', '#ffd0a0']
+
+function generateGlitterFlakes(size: number, rand: () => number): GlitterFlake[] {
+  const flakes: GlitterFlake[] = []
+  for (let i = 0; i < 700; i++) {
+    const angle = rand() * Math.PI * 2, tilt = rand() * 0.88 + 0.12
+    flakes.push({
+      x: rand() * size, y: rand() * size, r: rand() * 1.5 + 0.5,
+      tiltX: Math.cos(angle) * tilt, tiltY: Math.sin(angle) * tilt,
+      isStar: false,
+      color: GLITTER_COLORS[Math.floor(rand() * GLITTER_COLORS.length)],
+      alpha: rand() * 0.9 + 0.1,
+    })
+  }
+  for (let i = 0; i < 50; i++) {
+    const angle = rand() * Math.PI * 2, tilt = rand() * 0.85 + 0.15
+    flakes.push({
+      x: rand() * size, y: rand() * size, r: rand() * 2 + 1.5,
+      tiltX: Math.cos(angle) * tilt, tiltY: Math.sin(angle) * tilt,
+      isStar: true,
+      color: STAR_COLORS[Math.floor(rand() * STAR_COLORS.length)],
+      alpha: rand() * 0.8 + 0.2,
+    })
+  }
+  return flakes
+}
+
+const flakeCache = new Map<string, GlitterFlake[]>()
+function getGlitterFlakes(dieIdx: number, faceNum: number): GlitterFlake[] {
+  const key = `${dieIdx}_${faceNum}`
+  if (flakeCache.has(key)) return flakeCache.get(key)!
+  const rand = seededRand(dieIdx * 1000 + faceNum * 7)
+  const flakes = generateGlitterFlakes(256, rand)
+  flakeCache.set(key, flakes)
+  return flakes
+}
 const raycaster = new THREE.Raycaster()
 const ndcPointer = new THREE.Vector2()
 let pointerDownPos = { x: 0, y: 0 }
@@ -65,33 +119,25 @@ const PREVIEW_POS: [number, number, number][] = [
 function getDieTextures(idx: number): THREE.CanvasTexture[] {
   if (textureCache.has(idx)) return textureCache.get(idx)!
   const cfg = DICE_COLLECTION[idx]
-  const textures = [1, 2, 3, 4, 5, 6].map(n => makeFaceTex(n, cfg))
+  const textures = [1, 2, 3, 4, 5, 6].map(n => {
+    const flakes = cfg.glitterSurface ? getGlitterFlakes(idx, n) : undefined
+    return makeFaceTex(n, cfg, flakes)
+  })
   textureCache.set(idx, textures)
   return textures
 }
 
-function makeGlitterLayer(ctx: CanvasRenderingContext2D, size: number) {
-  // dense small sparkles
-  for (let i = 0; i < 180; i++) {
-    const gx = Math.random() * size
-    const gy = Math.random() * size
-    const gr = Math.random() * 5 + 1.5
-    ctx.beginPath()
-    ctx.arc(gx, gy, gr, 0, Math.PI * 2)
-    ctx.fillStyle = Math.random() > 0.45 ? '#ffd700' : '#e8e8ff'
-    ctx.globalAlpha = Math.random() * 0.9 + 0.1
-    ctx.fill()
-  }
-  // larger star-cross sparkles
-  for (let i = 0; i < 22; i++) {
-    const gx = Math.random() * size
-    const gy = Math.random() * size
-    const gs = Math.random() * 8 + 5
-    const c = Math.random() > 0.5 ? '#ffffa0' : '#ffffff'
-    ctx.globalAlpha = Math.random() * 0.8 + 0.2
-    ctx.fillStyle = c
-    ctx.fillRect(gx - gs, gy - 1.5, gs * 2, 3)
-    ctx.fillRect(gx - 1.5, gy - gs, 3, gs * 2)
+function makeGlitterLayer(ctx: CanvasRenderingContext2D, flakes: GlitterFlake[]) {
+  for (const f of flakes) {
+    ctx.globalAlpha = f.alpha
+    ctx.fillStyle = f.color
+    const x = Math.round(f.x), y = Math.round(f.y), r = Math.round(f.r)
+    if (f.isStar) {
+      ctx.fillRect(x - r, y - 2, r * 2, 4)
+      ctx.fillRect(x - 2, y - r, 4, r * 2)
+    } else {
+      ctx.fillRect(x - r, y - r, r * 2, r * 2)
+    }
   }
   ctx.globalAlpha = 1.0
 }
@@ -143,7 +189,7 @@ function makeStandardPip(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
   ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fill()
 }
 
-function makeFaceTex(n: number, cfg: DieConfig): THREE.CanvasTexture {
+function makeFaceTex(n: number, cfg: DieConfig, glitterFlakes?: GlitterFlake[]): THREE.CanvasTexture {
   const S = 256
   const canvas = document.createElement('canvas')
   canvas.width = S; canvas.height = S
@@ -161,7 +207,7 @@ function makeFaceTex(n: number, cfg: DieConfig): THREE.CanvasTexture {
     ctx.fillStyle = g2; ctx.fillRect(0, 0, S, S)
   }
 
-  if (cfg.glitterSurface) makeGlitterLayer(ctx, S)
+  if (cfg.glitterSurface && glitterFlakes) makeGlitterLayer(ctx, glitterFlakes)
 
   const pips = PIP_POSITIONS[n]
   for (const [fx, fy] of pips) {
@@ -181,11 +227,13 @@ function buildMaterials(dieIdx: number): THREE.Material[] {
   const cfg = DICE_COLLECTION[dieIdx]
   const textures = getDieTextures(dieIdx)
   const roughnessMaps = getDieRoughnessMaps(dieIdx)
+  const normalMaps = getDieNormalMaps(dieIdx)
   const envI = cfg.envMapIntensity ?? 1.2
 
   return FACE_FOR_MATERIAL.map(faceNum => {
     const map = textures[faceNum - 1]
     const roughnessMap = roughnessMaps[faceNum - 1]
+    const normalMap = normalMaps?.[faceNum - 1]
     if (cfg.physical) {
       const p = cfg.physical
       const params: THREE.MeshPhysicalMaterialParameters = {
@@ -198,6 +246,7 @@ function buildMaterials(dieIdx: number): THREE.Material[] {
       if (p.iridescence !== undefined)   { params.iridescence  = p.iridescence; params.iridescenceIOR = p.iridescenceIOR ?? 1.5 }
       if (p.clearcoat !== undefined)     { params.clearcoat    = p.clearcoat;   params.clearcoatRoughness = p.clearcoatRoughness ?? 0.05 }
       if (p.opacity !== undefined && p.opacity < 1) { params.opacity = p.opacity; params.transparent = true; params.depthWrite = false }
+      if (normalMap) { params.normalMap = normalMap; params.normalScale = new THREE.Vector2(0.85, 0.85) }
       return new THREE.MeshPhysicalMaterial(params)
     }
     const s = cfg.standard ?? {}
@@ -207,6 +256,7 @@ function buildMaterials(dieIdx: number): THREE.Material[] {
       metalness: s.metalness ?? 0.04,
     }
     if (s.color !== undefined) sp.color = new THREE.Color(s.color)
+    if (normalMap) { sp.normalMap = normalMap; sp.normalScale = new THREE.Vector2(0.85, 0.85) }
     return new THREE.MeshStandardMaterial(sp)
   })
 }
@@ -257,12 +307,97 @@ function makePipRoughnessMap(n: number, bodyRoughness: number, pipScale = 1.0): 
   return new THREE.CanvasTexture(canvas)
 }
 
+function makeGlitterRoughnessMap(faceNum: number, bodyRoughness: number, dieIdx: number, pipScale: number): THREE.CanvasTexture {
+  const S = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = S; canvas.height = S
+  const ctx = canvas.getContext('2d')!
+  const bodyV = Math.round(bodyRoughness * 255)
+  ctx.fillStyle = `rgb(${bodyV},${bodyV},${bodyV})`
+  ctx.fillRect(0, 0, S, S)
+  // glitter flakes: very low roughness → catch strong specular highlight
+  const sparkleV = Math.round(0.04 * 255)
+  for (const f of getGlitterFlakes(dieIdx, faceNum)) {
+    const x = Math.round(f.x), y = Math.round(f.y), r = Math.round(f.r)
+    ctx.fillStyle = `rgb(${sparkleV},${sparkleV},${sparkleV})`
+    ctx.fillRect(x - r, y - r, r * 2, r * 2)
+  }
+  // pip areas: matte, hard-edged via ImageData to avoid antialiased specular rim
+  const pipV = Math.round(0.88 * 255), pipR = S * 0.086 * pipScale
+  const imgR = ctx.getImageData(0, 0, S, S), dR = imgR.data
+  const pipR2 = pipR * pipR
+  for (const [fx, fy] of PIP_POSITIONS[faceNum]) {
+    const cx = Math.round(fx * S), cy = Math.round(fy * S)
+    for (let py = 0; py < S; py++) {
+      for (let px = 0; px < S; px++) {
+        const dx = px - cx, dy = py - cy
+        if (dx*dx + dy*dy <= pipR2) {
+          const i = (py * S + px) * 4
+          dR[i] = dR[i+1] = dR[i+2] = pipV; dR[i+3] = 255
+        }
+      }
+    }
+  }
+  ctx.putImageData(imgR, 0, 0)
+  return new THREE.CanvasTexture(canvas)
+}
+
+function makeGlitterNormalMap(faceNum: number, dieIdx: number, pipScale: number): THREE.CanvasTexture {
+  const S = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = S; canvas.height = S
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = 'rgb(128,128,255)'   // flat tangent-space normal
+  ctx.fillRect(0, 0, S, S)
+  for (const f of getGlitterFlakes(dieIdx, faceNum)) {
+    const nz = Math.sqrt(Math.max(0.01, 1 - f.tiltX * f.tiltX - f.tiltY * f.tiltY))
+    const r = Math.round((f.tiltX * 0.5 + 0.5) * 255)
+    const g = Math.round((f.tiltY * 0.5 + 0.5) * 255)
+    const b = Math.round((nz   * 0.5 + 0.5) * 255)
+    const fx = Math.round(f.x), fy = Math.round(f.y), fr = Math.round(f.r)
+    ctx.fillStyle = `rgb(${r},${g},${b})`
+    ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2)
+  }
+  // pip areas: reset to flat normal, hard-edged via ImageData
+  const pipR = S * 0.086 * pipScale
+  const imgN = ctx.getImageData(0, 0, S, S), dN = imgN.data
+  const pipR2N = (pipR + 2) * (pipR + 2)  // +2 ensures full coverage at pip edge
+  for (const [fx, fy] of PIP_POSITIONS[faceNum]) {
+    const cx = Math.round(fx * S), cy = Math.round(fy * S)
+    for (let py = 0; py < S; py++) {
+      for (let px = 0; px < S; px++) {
+        const dx = px - cx, dy = py - cy
+        if (dx*dx + dy*dy <= pipR2N) {
+          const i = (py * S + px) * 4
+          dN[i] = 128; dN[i+1] = 128; dN[i+2] = 255; dN[i+3] = 255
+        }
+      }
+    }
+  }
+  ctx.putImageData(imgN, 0, 0)
+  return new THREE.CanvasTexture(canvas)
+}
+
 function getDieRoughnessMaps(dieIdx: number): THREE.CanvasTexture[] {
   if (roughnessCache.has(dieIdx)) return roughnessCache.get(dieIdx)!
   const cfg = DICE_COLLECTION[dieIdx]
   const bodyR = cfg.physical?.roughness ?? cfg.standard?.roughness ?? 0.22
-  const maps = [1, 2, 3, 4, 5, 6].map(n => makePipRoughnessMap(n, bodyR, cfg.pipScale ?? 1.0))
+  const ps = cfg.pipScale ?? 1.0
+  const maps = [1, 2, 3, 4, 5, 6].map(n =>
+    cfg.glitterSurface
+      ? makeGlitterRoughnessMap(n, bodyR, dieIdx, ps)
+      : makePipRoughnessMap(n, bodyR, ps)
+  )
   roughnessCache.set(dieIdx, maps)
+  return maps
+}
+
+function getDieNormalMaps(dieIdx: number): THREE.CanvasTexture[] | null {
+  if (!DICE_COLLECTION[dieIdx].glitterSurface) return null
+  if (normalMapCache.has(dieIdx)) return normalMapCache.get(dieIdx)!
+  const ps = DICE_COLLECTION[dieIdx].pipScale ?? 1.0
+  const maps = [1, 2, 3, 4, 5, 6].map(n => makeGlitterNormalMap(n, dieIdx, ps))
+  normalMapCache.set(dieIdx, maps)
   return maps
 }
 
@@ -583,6 +718,7 @@ onUnmounted(() => {
   controls?.dispose()
   textureCache.forEach(ts => ts.forEach(t => t.dispose()))
   roughnessCache.forEach(ms => ms.forEach(t => t.dispose()))
+  normalMapCache.forEach(ms => ms.forEach(t => t.dispose()))
   renderer.dispose()
 })
 </script>
